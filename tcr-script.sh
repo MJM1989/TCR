@@ -1,3 +1,5 @@
+filter=$1
+
 RED="tput setaf 1"
 GREEN="tput setaf 2"
 YELLOW="tput setaf 3"
@@ -13,7 +15,13 @@ function Test() {
     echo ""
     echo "$($YELLOW)==== Test ====$($DEFAULT)"
     echo ""
-    dotnet test --no-build --nologo
+
+    if [[ "$filter" == "" ]]
+    then
+      dotnet test --no-build --nologo
+    else
+      dotnet test --no-build --nologo --filter FullyQualifiedName~"${filter}"
+    fi
 }
 
 function Commit() {

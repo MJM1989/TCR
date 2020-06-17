@@ -1,5 +1,6 @@
 # Test && Commit || Revert
 inInterrupt=false
+filter=""
 
 function SetupTcrWatch() {
     while true; do
@@ -8,7 +9,7 @@ function SetupTcrWatch() {
         if [[ "$inInterrupt" == false ]]; then
 	    wmctrl -l
             reset
-            tcr-script.sh
+            tcr-script.sh $filter
         else
             inInterrupt=false
         fi
@@ -26,12 +27,18 @@ function CommitWorkInProgress() {
     git commit -m $"$message"
 }
 
+function SetTestFilter() {
+    [[ "$1" == "" ]] && echo "Please the class name of your tests: " && read -r filter || filter="$1"
+    filter=$(sed -e 's/^"//' -e 's/"$//' <<<"$filter")
+}
+
 function WriteAvailableCommands() {
     echo "   help                    Prints the help information and continues TCR"
     echo "   stop:                   Stops the TCR watcher"
     echo "   commit [ <message> ]    Finizales the work in progress in a commit with"
     echo "                           the specified message and continues TCR"
     echo "   continue                Continue the TCR watcher"
+    echo "   filter                  Specify an inclusive filter for the tests to use"
 }
 
 function WriteInvalidInputMessage() {
@@ -56,6 +63,7 @@ function OnInturrupt() {
         [[ "$command" == "help" ]] && validInput=true && WriteAvailableCommands
         [[ "$command" == "stop" ]] && validInput=true && exit
         [[ "$command" == "commit" ]] && validInput=true && CommitWorkInProgress "$arg0"
+        [[ "$command" == "filter" ]] && validInput=true && SetTestFilter "$arg0"
         [[ "$command" == "continue" ]] && validInput=true
         [[ "$validInput" == false ]] && WriteInvalidInputMessage
     done
