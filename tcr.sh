@@ -1,35 +1,72 @@
 # Test && Commit || Revert
 inInterrupt=false
 filter=""
+environment="C#"
 
 function SetupTcrWatch() {
     while true; do
-        inotifywait -qq -r -e modify --exclude cs~ $PWD
+        if [[ "$environment" == "C#" ]]
+          then
+            inotifywait -qq -r -e modify --exclude cs~ "$PWD"
+          else
+            inotifywait -qq -r -e modify --exclude ts~ "$PWD"
+        fi
 
         if [[ "$inInterrupt" == false ]]; then
-	          wmctrl -l
+            wmctrl -l
             reset
-            tcr-script.sh $filter
+            if [[ "$environment" == "C#" ]]
+              then
+                tcr-script.sh $filter
+              elif [[ "$input" == "Angular" ]]
+              then
+                echo "Run tcr for angular"
+              else
+                echo "No tcr environment set"
+            fi
         else
             inInterrupt=false
         fi
     done
 }
 
-function CommitWorkInProgress() {
-    [[ "$1" == "" ]] && echo "Please type your commit message: " && read -r message || message="$1"
-    message=$(sed -e 's/^"//' -e 's/"$//' <<<"$message")
+function SanitizeOrAskForInput() {
+  [[ "$1" == "" ]] && echo "$2" && read -r input || input="$1"
+  input="$(sed -e 's/^"//' -e 's/"$//' <<<"$input")"
+  return 0
+}
 
-    commitCount=$(git log --oneline origin/master..HEAD | grep WIP | wc -l | tr -d '[:space:]')
+function CommitWorkInProgress() {
+    SanitizeOrAskForInput "$1" "Please type your commit message:"
+
+    commitCount=$(git log --oneline origin/master..HEAD | grep -c WIP | tr -d '[:space:]')
 
     git reset --soft HEAD~"$commitCount"
 
-    git commit -m $"$message"
+    git commit -m "$input"
 }
 
 function SetTestFilter() {
-    [[ "$1" == "" ]] && echo "Please the class name of your tests: " && read -r filter || filter="$1"
-    filter=$(sed -e 's/^"//' -e 's/"$//' <<<"$filter")
+    SanitizeOrAskForInput "$1" "Please the class name of your tests: " && filter=$input
+}
+
+function SetupEnvironment() {
+    SanitizeOrAskForInput "$1" "Please indicate your environment (C# or Angular):"
+
+    if [[ "$input" == "C#" ]]
+      then
+        environment="$input"
+        echo "C# chosen"
+      elif [[ "$input" == "Angular" ]]
+      then
+        environment="$input"
+        echo "Angular chosen"
+      else
+        echo "Invalid choice. Sticking to current environment: $environment"
+        return 1
+    fi
+
+    SetupTcrWatch
 }
 
 function WriteAvailableCommands() {
@@ -39,6 +76,7 @@ function WriteAvailableCommands() {
     echo "                           the specified message and continues TCR"
     echo "   continue                Continue the TCR watcher"
     echo "   filter                  Specify an inclusive filter for the tests to use"
+    echo "   setup                   Setup the environment (C# or Angular) for TCR"
 }
 
 function WriteInvalidInputMessage() {
@@ -51,6 +89,10 @@ function WriteHelpInformation() {
     WriteAvailableCommands
 }
 
+function CheckValidInput() {
+  [[ "$command" == "$1" ]] && validInput=true && return 0 || return 1
+}
+
 function OnInturrupt() {
     reset
     echo "Pausing TCR. How can I help you?"
@@ -60,11 +102,12 @@ function OnInturrupt() {
 
     while ! $validInput; do
         read -r command arg0
-        [[ "$command" == "help" ]] && validInput=true && WriteAvailableCommands
-        [[ "$command" == "stop" ]] && validInput=true && exit
-        [[ "$command" == "commit" ]] && validInput=true && CommitWorkInProgress "$arg0"
-        [[ "$command" == "filter" ]] && validInput=true && SetTestFilter "$arg0"
-        [[ "$command" == "continue" ]] && validInput=true
+        CheckValidInput "help" && WriteAvailableCommands
+        CheckValidInput "stop" && exit
+        CheckValidInput "commit" && CommitWorkInProgress "$arg0"
+        CheckValidInput "filter" && SetTestFilter "$arg0"
+        CheckValidInput "setup" && SetupEnvironment "$arg0"
+        CheckValidInput "continue"
         [[ "$validInput" == false ]] && WriteInvalidInputMessage
     done
 
